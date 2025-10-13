@@ -1,0 +1,15 @@
+[project]
+name = "meta-ads-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.12.4",
+    "pydantic-settings>=2.11.0",
+    "requests>=2.32.5",
+    "tenacity>=9.1.2",
+]
+
+[project.scripts]
+meta-ads-mcp = "meta_ads_mcp.__main__:main"
