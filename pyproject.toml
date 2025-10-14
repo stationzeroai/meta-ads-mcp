@@ -8,9 +8,20 @@ dependencies = [
     "fastmcp>=2.12.4",
     "httpx>=0.28.1",
     "pydantic-settings>=2.11.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-env>=1.2.0",
+    "pytest-mock>=3.15.1",
     "requests>=2.32.5",
     "tenacity>=9.1.2",
 ]
 
 [project.scripts]
 meta-ads-mcp = "meta_ads_mcp.__main__:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src/meta_ads_mcp/tests"]
+env = [
+    "META_ACCESS_TOKEN=test"
+]
