@@ -4,6 +4,7 @@ from .tools import ads as ads_tools
 from .tools import adsets as adsets_tools
 from .tools import campaigns as campaigns_tools
 from .tools import reporting as reporting_tools
+from .tools import audiences as audiences_tools
 
 
 def create_server():
@@ -13,6 +14,7 @@ def create_server():
     adsets_tools.register_tools(mcp)
     campaigns_tools.register_tools(mcp)
     reporting_tools.register_tools(mcp)
+    audiences_tools.register_tools(mcp)
 
     return mcp
 
