@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-meta-ads-mcp = "meta_ads_mcp.__main__:main"
+meta-ads-mcp = "meta_ads_mcp.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
