@@ -25,3 +25,8 @@ testpaths = ["src/meta_ads_mcp/tests"]
 env = [
     "META_ACCESS_TOKEN=test"
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.0",
+]

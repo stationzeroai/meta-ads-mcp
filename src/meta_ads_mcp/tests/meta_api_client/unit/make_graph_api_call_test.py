@@ -1,12 +1,6 @@
 import httpx
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def _fast_asyncio_sleep(mocker):
-    mocker.patch("asyncio.sleep", new=mocker.AsyncMock(return_value=None))
-
-
 from meta_ads_mcp.meta_api_client.client import make_graph_api_call
 from meta_ads_mcp.meta_api_client.errors import (
     AuthenticationError,
@@ -14,6 +8,11 @@ from meta_ads_mcp.meta_api_client.errors import (
     ServerError,
 )
 from meta_ads_mcp.meta_api_client import utils as utils_module
+
+
+@pytest.fixture(autouse=True)
+def _fast_asyncio_sleep(mocker):
+    mocker.patch("asyncio.sleep", new=mocker.AsyncMock(return_value=None))
 
 
 @pytest.mark.asyncio

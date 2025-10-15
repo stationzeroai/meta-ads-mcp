@@ -61,7 +61,7 @@ def meta_request_handler(func):
 
 
 def handle_error_response(response: Dict) -> None:
-    if not "error" in response:
+    if "error" not in response:
         return
 
     error_info = response["error"]
