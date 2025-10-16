@@ -1,4 +1,5 @@
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+from fastmcp.server.middleware.error_handling import ErrorHandlingMiddleware
 
 from .tools import ads as ads_tools
 from .tools import adsets as adsets_tools
@@ -15,6 +16,8 @@ def create_server():
     campaigns_tools.register_tools(mcp)
     reporting_tools.register_tools(mcp)
     audiences_tools.register_tools(mcp)
+
+    mcp.add_middleware(ErrorHandlingMiddleware())
 
     return mcp
 

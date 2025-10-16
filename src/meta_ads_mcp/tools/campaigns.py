@@ -1,7 +1,7 @@
 import json
 from typing import Optional, Dict, Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
 from meta_ads_mcp.meta_api_client.client import make_graph_api_post
@@ -108,19 +108,9 @@ def register_tools(mcp: FastMCP):
             ab_test_control_setups=[],  # required by the API, hardcode default for now
         )
 
-        try:
-            data = await make_graph_api_post(url, params)
-            return json.dumps(data, indent=2)
-        except Exception as e:
-            error_msg = str(e)
-            return json.dumps(
-                {
-                    "error": "Failed to create CBO campaign",
-                    "details": error_msg,
-                    "params_sent": params,
-                },
-                indent=2,
-            )
+        data = await make_graph_api_post(url, params)
+
+        return json.dumps(data, indent=2)
 
     @mcp.tool()
     async def create_abo_campaign(
@@ -179,19 +169,8 @@ def register_tools(mcp: FastMCP):
             ab_test_control_setups=[],
         )
 
-        try:
-            data = await make_graph_api_post(url, params)
-            return json.dumps(data, indent=2)
-        except Exception as e:
-            error_msg = str(e)
-            return json.dumps(
-                {
-                    "error": "Failed to create ABO campaign",
-                    "details": error_msg,
-                    "params_sent": params,
-                },
-                indent=2,
-            )
+        data = await make_graph_api_post(url, params)
+        return json.dumps(data, indent=2)
 
     @mcp.tool()
     async def deactivate_or_activate_campaign(

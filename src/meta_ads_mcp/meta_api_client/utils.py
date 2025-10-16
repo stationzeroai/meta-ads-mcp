@@ -7,6 +7,7 @@ from tenacity import (
 )
 import json
 import httpx
+import logging
 
 from meta_ads_mcp.meta_api_client.errors import (
     AuthenticationError,
@@ -18,17 +19,15 @@ from meta_ads_mcp.meta_api_client.errors import (
 
 from meta_ads_mcp.config import config
 
+logger = logging.getLogger(__name__)
+
 EXCEPTION_MAPPING = {
     4: TooManyRequestsError,
     17: TooManyRequestsError,
-    1: ServerError,
-    2: ServerError,
-    3: ServerError,
     190: AuthenticationError,
     102: AuthenticationError,
     104: AuthenticationError,
     803: NotFoundError,
-    100: ServerError,
 }
 
 
@@ -46,6 +45,8 @@ def meta_request_handler(func):
         try:
             return await func(*args, **kwargs)
         except httpx.HTTPStatusError as e:
+            logger.debug(f"HTTP error occurred: {str(e)}")
+
             try:
                 error_response = e.response.json()
             except json.JSONDecodeError:
@@ -68,4 +69,6 @@ def handle_error_response(response: Dict) -> None:
     error_code = error_info.get("code", None)
     exception_class = EXCEPTION_MAPPING.get(error_code, MetaApiError)
 
-    raise exception_class(response)
+    raise exception_class(
+        {"error": {"message": error_info.get("message", "Unknown error")}}
+    )

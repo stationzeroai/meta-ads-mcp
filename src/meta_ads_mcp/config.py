@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     META_ACCESS_TOKEN: str
 
     LOG_LEVEL: str = "INFO"
-    MAX_RETRIES: int = 5
+    MAX_RETRIES: int = 3
 
 
 config = Settings()  # type: ignore

@@ -2,7 +2,7 @@ from typing import Optional, List, Dict, Any
 import json
 import requests
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
 from meta_ads_mcp.meta_api_client.client import make_graph_api_post
@@ -103,19 +103,9 @@ def register_tools(mcp: FastMCP):
         # ──────────────────────────────────────────────────────────────────────
         url = f"{FB_GRAPH_URL}/{account_id}/ads"
 
-        try:
-            # same helper used by create_adset; assumed to be synchronous
-            data = await make_graph_api_post(url, base_params)
-            return json.dumps(data, indent=2)
-        except Exception as exc:  # broad catch → re-wrap for agent clarity
-            return json.dumps(
-                {
-                    "error": "Failed to create ad",
-                    "details": str(exc),
-                    "params_sent": base_params,
-                },
-                indent=2,
-            )
+        data = await make_graph_api_post(url, base_params)
+
+        return json.dumps(data, indent=2)
 
     def _build_dfo_spec(
         *,
