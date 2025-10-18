@@ -246,7 +246,7 @@ def _extract_video_thumbnail_sync(video_data: bytes, frame_time: float = 1.0) ->
     finally:
         try:
             os.unlink(temp_video_path)
-        except:
+        except Exception:
             pass
 
 
