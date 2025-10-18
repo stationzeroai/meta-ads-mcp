@@ -9,6 +9,7 @@ from .tools import reporting as reporting_tools
 from .tools import audiences as audiences_tools
 from .tools import batch_queries as batch_queries_tools
 from .tools import utilities as utilities_tools
+from .tools import media as media_tools
 
 
 def create_server():
@@ -22,6 +23,7 @@ def create_server():
     audiences_tools.register_tools(mcp)
     batch_queries_tools.register_tools(mcp)
     utilities_tools.register_tools(mcp)
+    media_tools.register_tools(mcp)
 
     mcp.add_middleware(ErrorHandlingMiddleware())
 
