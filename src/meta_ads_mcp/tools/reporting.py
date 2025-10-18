@@ -2,7 +2,7 @@ import json
 import httpx
 from typing import Optional, List, Dict, Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
 from meta_ads_mcp.meta_api_client.client import make_graph_api_call

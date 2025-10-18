@@ -5,7 +5,6 @@ from meta_ads_mcp.meta_api_client.client import make_graph_api_call
 from meta_ads_mcp.meta_api_client.errors import (
     AuthenticationError,
     MetaApiError,
-    ServerError,
 )
 from meta_ads_mcp.meta_api_client import utils as utils_module
 
@@ -114,7 +113,7 @@ async def test_make_graph_api_call_retries_and_succeeds_after_transient_errors(m
     url = "https://graph.facebook.com/v17.0/12345"
     params = {"fields": "id"}
 
-    retry_error_body = {"error": {"code": 1}}
+    retry_error_body = {"error": {"code": 4}}
     retry_response_one = httpx.Response(
         500, request=httpx.Request("GET", url), json=retry_error_body
     )
@@ -157,7 +156,7 @@ async def test_make_graph_api_call_retries_and_succeeds_after_transient_errors(m
 async def test_make_graph_api_call_raises_error_after_exhausting_retries(mocker):
     url = "https://graph.facebook.com/v17.0/12345"
     params = {"fields": "id"}
-    error_body = {"error": {"code": 1}}
+    error_body = {"error": {"code": 4}}
 
     errors = []
     for _ in range(utils_module.config.MAX_RETRIES):
@@ -183,7 +182,7 @@ async def test_make_graph_api_call_raises_error_after_exhausting_retries(mocker)
     )
     mock_async_client.return_value.__aexit__ = mocker.AsyncMock(return_value=None)
 
-    with pytest.raises(ServerError):
+    with pytest.raises(MetaApiError):
         await make_graph_api_call(url=url, params=params)
 
     assert mock_client.get.await_count == utils_module.config.MAX_RETRIES
