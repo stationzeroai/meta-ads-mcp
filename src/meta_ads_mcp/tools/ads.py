@@ -5,7 +5,7 @@ import requests
 from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
-from meta_ads_mcp.meta_api_client.client import make_graph_api_post
+from meta_ads_mcp.meta_api_client.client import make_graph_api_post, make_graph_api_call
 from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
@@ -405,22 +405,9 @@ def register_tools(mcp: FastMCP):
                 ensure_ascii=False,
             )
 
-        try:
-            result = await make_graph_api_post(url, params)
-            return json.dumps(result, indent=2, ensure_ascii=False)
-        except Exception as exc:
-            return json.dumps(
-                {
-                    "error": "Failed to edit ad",
-                    "details": str(exc),
-                    "ad_id": ad_id,
-                    "params_sent": {
-                        k: v for k, v in params.items() if k != "access_token"
-                    },
-                },
-                indent=2,
-                ensure_ascii=False,
-            )
+        result = await make_graph_api_post(url, params)
+
+        return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def bulk_update_status(
@@ -554,3 +541,206 @@ def register_tools(mcp: FastMCP):
         }
 
         return json.dumps(response, indent=2, ensure_ascii=False)
+
+    @mcp.tool()
+    async def get_ad_by_id(
+        ad_id: str,
+        fields: Optional[List[str]] = None,
+    ) -> str:
+        """Get details of a specific ad by ID.
+
+        Args:
+            ad_id (str): The Ad ID.
+            fields (List[str]): Specific fields to retrieve. Available fields include:
+                'id', 'name', 'adset_id', 'campaign_id', 'status', 'effective_status',
+                'creative', 'tracking_specs', 'created_time', 'updated_time',
+                'bid_amount', 'targeting', 'conversion_specs'.
+
+        Returns:
+            str: JSON string containing the ad details.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{ad_id}"
+
+        params = {"access_token": access_token}
+        if fields:
+            params["fields"] = ",".join(fields)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_ads_by_adaccount(
+        act_id: str,
+        fields: Optional[List[str]] = None,
+        filtering: Optional[List[dict]] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        effective_status: Optional[List[str]] = None,
+    ) -> str:
+        """List all ads in an ad account.
+
+        Args:
+            act_id (str): The Ad Account ID (format: act_XXXXXXXXXX).
+            fields (List[str]): Specific fields to retrieve. Common fields: 'id', 'name',
+                'adset_id', 'campaign_id', 'effective_status', 'creative', 'tracking_specs'.
+            filtering (List[dict]): Filter objects with 'field', 'operator', 'value' keys.
+            limit (int): Maximum number of results per page. Default: 25.
+            after (str): Pagination cursor for next page.
+            before (str): Pagination cursor for previous page.
+            effective_status (List[str]): Filter by status. Options: 'ACTIVE', 'PAUSED',
+                'DELETED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES'.
+
+        Returns:
+            str: JSON string containing list of ads with 'data' and 'paging' keys.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{act_id}/ads"
+
+        params = {
+            "access_token": access_token,
+            "limit": limit,
+        }
+
+        if fields:
+            params["fields"] = ",".join(fields)
+        if filtering:
+            params["filtering"] = json.dumps(filtering)
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        if effective_status:
+            params["effective_status"] = json.dumps(effective_status)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_ads_by_campaign(
+        campaign_id: str,
+        fields: Optional[List[str]] = None,
+        filtering: Optional[List[dict]] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        effective_status: Optional[List[str]] = None,
+    ) -> str:
+        """List all ads in a campaign.
+
+        Args:
+            campaign_id (str): The Campaign ID.
+            fields (List[str]): Specific fields to retrieve. Common fields: 'id', 'name',
+                'adset_id', 'campaign_id', 'effective_status', 'creative', 'tracking_specs'.
+            filtering (List[dict]): Filter objects with 'field', 'operator', 'value' keys.
+            limit (int): Maximum number of results per page. Default: 25.
+            after (str): Pagination cursor for next page.
+            before (str): Pagination cursor for previous page.
+            effective_status (List[str]): Filter by status. Options: 'ACTIVE', 'PAUSED',
+                'DELETED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES'.
+
+        Returns:
+            str: JSON string containing list of ads with 'data' and 'paging' keys.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{campaign_id}/ads"
+
+        params = {
+            "access_token": access_token,
+            "limit": limit,
+        }
+
+        if fields:
+            params["fields"] = ",".join(fields)
+        if filtering:
+            params["filtering"] = json.dumps(filtering)
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        if effective_status:
+            params["effective_status"] = json.dumps(effective_status)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_ads_by_adset(
+        adset_id: str,
+        fields: Optional[List[str]] = None,
+        filtering: Optional[List[dict]] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        effective_status: Optional[List[str]] = None,
+    ) -> str:
+        """List all ads in an ad set.
+
+        Args:
+            adset_id (str): The Ad Set ID.
+            fields (List[str]): Specific fields to retrieve. Common fields: 'id', 'name',
+                'adset_id', 'campaign_id', 'effective_status', 'creative', 'tracking_specs'.
+            filtering (List[dict]): Filter objects with 'field', 'operator', 'value' keys.
+            limit (int): Maximum number of results per page. Default: 25.
+            after (str): Pagination cursor for next page.
+            before (str): Pagination cursor for previous page.
+            effective_status (List[str]): Filter by status. Options: 'ACTIVE', 'PAUSED',
+                'DELETED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES'.
+
+        Returns:
+            str: JSON string containing list of ads with 'data' and 'paging' keys.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{adset_id}/ads"
+
+        params = {
+            "access_token": access_token,
+            "limit": limit,
+        }
+
+        if fields:
+            params["fields"] = ",".join(fields)
+        if filtering:
+            params["filtering"] = json.dumps(filtering)
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        if effective_status:
+            params["effective_status"] = json.dumps(effective_status)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_ad_creative_by_id(
+        creative_id: str,
+        fields: Optional[List[str]] = None,
+    ) -> str:
+        """Get details of a specific ad creative.
+
+        Args:
+            creative_id (str): The Ad Creative ID.
+            fields (List[str]): Specific fields to retrieve. Available fields include:
+                'id', 'name', 'object_story_spec', 'object_type', 'product_set_id',
+                'template_url', 'thumbnail_url', 'image_url', 'video_id', 'body',
+                'title', 'link_url', 'call_to_action_type'.
+
+        Returns:
+            str: JSON string containing the ad creative details.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{creative_id}"
+
+        params = {"access_token": access_token}
+        if fields:
+            params["fields"] = ",".join(fields)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)

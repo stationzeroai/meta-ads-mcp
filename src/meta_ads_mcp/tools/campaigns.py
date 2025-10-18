@@ -1,10 +1,10 @@
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
-from meta_ads_mcp.meta_api_client.client import make_graph_api_post
+from meta_ads_mcp.meta_api_client.client import make_graph_api_post, make_graph_api_call
 from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
@@ -21,8 +21,8 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def create_cbo_campaign(
         act_id: str,
-        name: str = None,
-        objective: str = None,
+        name: str,
+        objective: str,
         status: str = "PAUSED",
         daily_budget: Optional[float] = None,
         lifetime_budget: Optional[float] = None,
@@ -222,3 +222,81 @@ def register_tools(mcp: FastMCP):
         return json.dumps(
             await make_graph_api_post(url, params), indent=2, ensure_ascii=False
         )
+
+    @mcp.tool()
+    async def get_campaign_by_id(
+        campaign_id: str,
+        fields: Optional[List[str]] = None,
+    ) -> str:
+        """Get details of a specific campaign by ID.
+
+        Args:
+            campaign_id (str): The Campaign ID.
+            fields (List[str]): Specific fields to retrieve. Available fields include:
+                'id', 'name', 'objective', 'status', 'effective_status', 'daily_budget',
+                'lifetime_budget', 'budget_remaining', 'created_time', 'updated_time',
+                'start_time', 'stop_time', 'account_id', 'buying_type', 'can_use_spend_cap',
+                'spend_cap', 'bid_strategy', 'campaign_budget_optimization'.
+
+        Returns:
+            str: JSON string containing the campaign details.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{campaign_id}"
+
+        params = {"access_token": access_token}
+        if fields:
+            params["fields"] = ",".join(fields)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_campaigns_by_adaccount(
+        act_id: str,
+        fields: Optional[List[str]] = None,
+        filtering: Optional[List[dict]] = None,
+        limit: int = 25,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        effective_status: Optional[List[str]] = None,
+    ) -> str:
+        """List all campaigns in an ad account.
+
+        Args:
+            act_id (str): The Ad Account ID (format: act_XXXXXXXXXX).
+            fields (List[str]): Specific fields to retrieve. Common fields: 'id', 'name',
+                'objective', 'effective_status', 'daily_budget', 'lifetime_budget', 'created_time'.
+            filtering (List[dict]): Filter objects with 'field', 'operator', 'value' keys.
+            limit (int): Maximum number of results per page. Default: 25.
+            after (str): Pagination cursor for next page.
+            before (str): Pagination cursor for previous page.
+            effective_status (List[str]): Filter by status. Options: 'ACTIVE', 'PAUSED',
+                'DELETED', 'ARCHIVED', 'IN_PROCESS', 'WITH_ISSUES'.
+
+        Returns:
+            str: JSON string containing list of campaigns with 'data' and 'paging' keys.
+        """
+        access_token = config.META_ACCESS_TOKEN
+        url = f"{FB_GRAPH_URL}/{act_id}/campaigns"
+
+        params = {
+            "access_token": access_token,
+            "limit": limit,
+        }
+
+        if fields:
+            params["fields"] = ",".join(fields)
+        if filtering:
+            params["filtering"] = json.dumps(filtering)
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        if effective_status:
+            params["effective_status"] = json.dumps(effective_status)
+
+        data = await make_graph_api_call(url, params)
+
+        return json.dumps(data, indent=2)
