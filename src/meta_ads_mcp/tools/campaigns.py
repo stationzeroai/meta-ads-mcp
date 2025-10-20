@@ -55,6 +55,7 @@ def register_tools(mcp: FastMCP):
         CBO campaigns automatically distribute budget across ad sets to get the best results.
 
         Args:
+            act_id (str): The Facebook Ads Ad Account ID (format: act_XXXXXXXXXX).
             name (str): Campaign name
             objective (str): Campaign objective. Validates ad objectives. enum{OUTCOME_APP_PROMOTION, OUTCOME_AWARENESS, OUTCOME_ENGAGEMENT, OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_TRAFFIC}. Default is OUTCOME_SALES.
             status (str): Initial campaign status (default: PAUSED)
@@ -145,6 +146,7 @@ def register_tools(mcp: FastMCP):
         These must be set when creating ad sets for this campaign.
 
         Args:
+            act_id (str): The Facebook Ads Ad Account ID (format: act_XXXXXXXXXX).
             name (str): Campaign name
             objective (str): Campaign objective. Validates ad objectives. enum{OUTCOME_APP_PROMOTION, OUTCOME_AWARENESS, OUTCOME_ENGAGEMENT, OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_TRAFFIC}. Default is OUTCOME_SALES.
             status (str): Initial campaign status (default: PAUSED)
