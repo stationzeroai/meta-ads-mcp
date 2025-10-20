@@ -9,11 +9,29 @@ from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
 def _prepare_params(base_params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-    """Adds optional parameters to a dictionary if they are not None."""
+    """Adds optional parameters to a dictionary if they are not None. Handles JSON encoding."""
     params = base_params.copy()
     for key, value in kwargs.items():
         if value is not None:
-            params[key] = value
+            # Parameters that need JSON encoding
+            if key in ['filtering', 'time_range', 'time_ranges', 'effective_status', 
+                       'special_ad_categories', 'objective', 'ab_test_control_setups',
+                       'buyer_guarantee_agreement_status', 'targeting', 'frequency_control_specs'] and isinstance(value, (list, dict)):
+                params[key] = json.dumps(value)
+            elif key == 'fields' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'action_attribution_windows' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'action_breakdowns' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'breakdowns' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'campaign_budget_optimization' and isinstance(value, bool):
+                 params[key] = "true" if value else "false"
+            elif key in ['daily_budget', 'lifetime_budget', 'bid_cap', 'spend_cap', 'bid_amount'] and value is not None:
+                 params[key] = str(value)
+            else:
+                params[key] = value
     return params
 
 
@@ -40,14 +58,12 @@ def register_tools(mcp: FastMCP):
             name (str): Campaign name
             objective (str): Campaign objective. Validates ad objectives. enum{OUTCOME_APP_PROMOTION, OUTCOME_AWARENESS, OUTCOME_ENGAGEMENT, OUTCOME_LEADS, OUTCOME_SALES, OUTCOME_TRAFFIC}. Default is OUTCOME_SALES.
             status (str): Initial campaign status (default: PAUSED)
-            special_ad_categories (List[str]): List of special ad categories if applicable. This is optional.
             daily_budget (float): Daily budget in account currency (in cents) as a string. Either daily_budget or lifetime_budget is required for CBO campaigns.
             lifetime_budget (float): Lifetime budget in account currency (in cents) as a string. Either daily_budget or lifetime_budget is required for CBO campaigns.
             buying_type (str): Buying type (e.g., 'AUCTION')
             bid_strategy (str): Bid strategy. Options are 'LOWEST_COST_WITHOUT_CAP' (default), 'LOWEST_COST_WITH_BID_CAP', 'COST_CAP'.
             bid_amount (float): Bid amount in account currency (in cents) as a string. Required if bid_strategy is 'LOWEST_COST_WITH_BID_CAP' or 'COST_CAP'.
             spend_cap (float): Spending limit for the campaign in account currency (in cents) as a string. This is optional.
-            ab_test_control_setups (Optional[List[Dict[str, Any]]]): Settings for A/B testing (e.g., [{"name":"Creative A", "ad_format":"SINGLE_IMAGE"}])
 
         Returns:
             str: A JSON string containing the created campaign details.

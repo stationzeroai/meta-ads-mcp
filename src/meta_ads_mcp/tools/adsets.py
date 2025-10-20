@@ -9,11 +9,29 @@ from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
 def _prepare_params(base_params: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-    """Adds optional parameters to a dictionary if they are not None."""
+    """Adds optional parameters to a dictionary if they are not None. Handles JSON encoding."""
     params = base_params.copy()
     for key, value in kwargs.items():
         if value is not None:
-            params[key] = value
+            # Parameters that need JSON encoding
+            if key in ['filtering', 'time_range', 'time_ranges', 'effective_status', 
+                       'special_ad_categories', 'objective', 'ab_test_control_setups',
+                       'buyer_guarantee_agreement_status', 'targeting', 'frequency_control_specs'] and isinstance(value, (list, dict)):
+                params[key] = json.dumps(value)
+            elif key == 'fields' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'action_attribution_windows' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'action_breakdowns' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'breakdowns' and isinstance(value, list):
+                 params[key] = ','.join(value)
+            elif key == 'campaign_budget_optimization' and isinstance(value, bool):
+                 params[key] = "true" if value else "false"
+            elif key in ['daily_budget', 'lifetime_budget', 'bid_cap', 'spend_cap', 'bid_amount'] and value is not None:
+                 params[key] = str(value)
+            else:
+                params[key] = value
     return params
 
 
