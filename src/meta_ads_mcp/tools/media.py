@@ -80,9 +80,9 @@ def _get_s3_client():
     if not S3_AVAILABLE:
         raise ImportError("boto3 not installed. Install with: pip install boto3")
 
-    aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY")
-    aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    region_name = os.getenv("AWS_REGION") or os.getenv("AWS_S3_REGION", "us-east-1")
+    aws_access_key_id = config.AWS_ACCESS_KEY_ID
+    aws_secret_access_key = config.AWS_SECRET_ACCESS_KEY
+    region_name = config.AWS_S3_REGION or config.AWS_REGION
 
     if not aws_access_key_id or not aws_secret_access_key:
         raise ValueError(
@@ -159,7 +159,7 @@ def _list_s3_folder_contents_sync(s3_folder_url: str) -> List[Dict[str, Any]]:
         )
 
         media_files = []
-        region_name = os.getenv("AWS_REGION") or os.getenv("AWS_S3_REGION", "us-east-1")
+        region_name = config.AWS_S3_REGION or config.AWS_REGION
 
         for obj in response.get("Contents", []):
             key = obj["Key"]
@@ -258,7 +258,7 @@ async def _extract_video_thumbnail(video_data: bytes, frame_time: float = 1.0) -
 
 
 async def _upload_image_to_facebook(
-    access_token: str, account_id: str, image_data: bytes, image_name: str
+    access_token: str, act_id: str, image_data: bytes, image_name: str
 ) -> Dict[str, Any]:
     """Upload image to Facebook Ad Images API."""
     try:
@@ -266,7 +266,7 @@ async def _upload_image_to_facebook(
     except ImportError:
         raise ImportError("httpx not installed. Install with: pip install httpx")
 
-    url = f"{FB_GRAPH_URL}/{account_id}/adimages"
+    url = f"{FB_GRAPH_URL}/{act_id}/adimages"
     files = {"filename": (image_name, image_data, "image/jpeg")}
     data = {"access_token": access_token}
 
@@ -279,7 +279,7 @@ async def _upload_image_to_facebook(
 
 
 async def _upload_video_to_facebook(
-    access_token: str, account_id: str, video_data: bytes, video_name: str
+    access_token: str, act_id: str, video_data: bytes, video_name: str
 ) -> Dict[str, Any]:
     """Upload video to Facebook Ad Videos API."""
     try:
@@ -287,7 +287,7 @@ async def _upload_video_to_facebook(
     except ImportError:
         raise ImportError("httpx not installed. Install with: pip install httpx")
 
-    url = f"{FB_GRAPH_URL}/{account_id}/advideos"
+    url = f"{FB_GRAPH_URL}/{act_id}/advideos"
     files = {"source": (video_name, io.BytesIO(video_data), "video/mp4")}
     data = {"access_token": access_token}
 
@@ -306,7 +306,7 @@ async def _upload_video_to_facebook(
 
 async def _create_single_image_creative(
     access_token: str,
-    account_id: str,
+    act_id: str,
     page_id: str,
     ig_id: Optional[str],
     image_item: Dict[str, Any],
@@ -336,13 +336,13 @@ async def _create_single_image_creative(
         "name": f"{image_item['name']} - Single Image Creative",
         "object_story_spec": json.dumps(object_story_spec),
     }
-    creative_url = f"{FB_GRAPH_URL}/{account_id}/adcreatives"
+    creative_url = f"{FB_GRAPH_URL}/{act_id}/adcreatives"
     return await make_graph_api_post(creative_url, creative_params)
 
 
 async def _create_carousel_creative(
     access_token: str,
-    account_id: str,
+    act_id: str,
     page_id: str,
     ig_id: Optional[str],
     media_items: List[Dict[str, Any]],
@@ -383,13 +383,13 @@ async def _create_carousel_creative(
         "name": f"{folder_name} - Carousel Creative",
         "object_story_spec": json.dumps(object_story_spec),
     }
-    creative_url = f"{FB_GRAPH_URL}/{account_id}/adcreatives"
+    creative_url = f"{FB_GRAPH_URL}/{act_id}/adcreatives"
     return await make_graph_api_post(creative_url, creative_params)
 
 
 async def _create_video_creative(
     access_token: str,
-    account_id: str,
+    act_id: str,
     page_id: str,
     ig_id: Optional[str],
     video_info: Dict[str, Any],
@@ -422,13 +422,14 @@ async def _create_video_creative(
         "name": f"{headline} - Video Creative",
         "object_story_spec": json.dumps(object_story_spec),
     }
-    creative_url = f"{FB_GRAPH_URL}/{account_id}/adcreatives"
+    creative_url = f"{FB_GRAPH_URL}/{act_id}/adcreatives"
     return await make_graph_api_post(creative_url, creative_params)
 
 
 def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def create_ad_with_media_creative_from_s3_folder_link(
+        act_id: str,
         name: str,
         adset_id: str,
         s3_folder_url: str,
@@ -453,6 +454,7 @@ def register_tools(mcp: FastMCP):
         - Mixed content: Creates carousel for images + individual video ads
 
         Args:
+            act_id (str): The Facebook Ads Ad Account ID (format: act_XXXXXXXXXX)
             name (str): Name for the ad(s).
             adset_id (str): ID of the ad set that will contain the ad(s).
             s3_folder_url (str): S3 URL pointing to the folder containing media files
@@ -474,9 +476,10 @@ def register_tools(mcp: FastMCP):
 
         Note:
             Requires AWS credentials in environment variables:
-            - AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY
+            - AWS_ACCESS_KEY_ID
             - AWS_SECRET_ACCESS_KEY
             - AWS_REGION (optional, defaults to us-east-1)
+            - AWS_S3_REGION (deprecated, use AWS_REGION instead)
         """
         if not S3_AVAILABLE:
             return json.dumps(
@@ -485,14 +488,11 @@ def register_tools(mcp: FastMCP):
             )
 
         access_token = config.META_ACCESS_TOKEN
-        account_id = (
-            config.META_AD_ACCOUNT_ID if hasattr(config, "META_AD_ACCOUNT_ID") else None
-        )
 
         missing = [
             field
             for field, val in {
-                "account_id": account_id,
+                "act_id": act_id,
                 "name": name,
                 "adset_id": adset_id,
                 "s3_folder_url": s3_folder_url,
@@ -530,7 +530,7 @@ def register_tools(mcp: FastMCP):
                             base_name = os.path.splitext(file_name)[0]
                             fb_file_name = f"{base_name}.jpg"
                             upload_res = await _upload_image_to_facebook(
-                                access_token, account_id, image_data, fb_file_name
+                                access_token, act_id, image_data, fb_file_name
                             )
                             if "images" not in upload_res:
                                 error_details = upload_res.get("error", {})
@@ -562,7 +562,7 @@ def register_tools(mcp: FastMCP):
                             thumb = await _extract_video_thumbnail(video_data)
                             thumb_res = await _upload_image_to_facebook(
                                 access_token,
-                                account_id,
+                                act_id,
                                 thumb,
                                 f"thumb_{file_name}.jpg",
                             )
@@ -581,7 +581,7 @@ def register_tools(mcp: FastMCP):
                             continue
 
                         vid_res = await _upload_video_to_facebook(
-                            access_token, account_id, video_data, file_name
+                            access_token, act_id, video_data, file_name
                         )
                         vid_id = vid_res.get("id")
                         if not vid_id:
@@ -633,7 +633,7 @@ def register_tools(mcp: FastMCP):
                     img = imgs[0]
                     single_img_creative = await _create_single_image_creative(
                         access_token,
-                        account_id,
+                        act_id,
                         page_id,
                         instagram_user_id,
                         img,
@@ -656,7 +656,7 @@ def register_tools(mcp: FastMCP):
                         if tracking_specs:
                             adp["tracking_specs"] = json.dumps(tracking_specs)
                         resp = await make_graph_api_post(
-                            f"{FB_GRAPH_URL}/{account_id}/ads", adp
+                            f"{FB_GRAPH_URL}/{act_id}/ads", adp
                         )
                         if "id" in resp:
                             resp.update(
@@ -679,7 +679,7 @@ def register_tools(mcp: FastMCP):
                 elif creative_type in ["carousel", "mixed"]:
                     carr = await _create_carousel_creative(
                         access_token,
-                        account_id,
+                        act_id,
                         page_id,
                         instagram_user_id,
                         imgs,
@@ -701,7 +701,7 @@ def register_tools(mcp: FastMCP):
                         if tracking_specs:
                             adp["tracking_specs"] = json.dumps(tracking_specs)
                         resp = await make_graph_api_post(
-                            f"{FB_GRAPH_URL}/{account_id}/ads", adp
+                            f"{FB_GRAPH_URL}/{act_id}/ads", adp
                         )
                         if "id" in resp:
                             resp.update(
@@ -724,7 +724,7 @@ def register_tools(mcp: FastMCP):
                 for v in vids:
                     vc = await _create_video_creative(
                         access_token,
-                        account_id,
+                        act_id,
                         page_id,
                         instagram_user_id,
                         {"id": v["id"]},
@@ -750,7 +750,7 @@ def register_tools(mcp: FastMCP):
                     if tracking_specs:
                         adp["tracking_specs"] = json.dumps(tracking_specs)
                     resp = await make_graph_api_post(
-                        f"{FB_GRAPH_URL}/{account_id}/ads", adp
+                        f"{FB_GRAPH_URL}/{act_id}/ads", adp
                     )
                     if "id" in resp:
                         resp.update(
