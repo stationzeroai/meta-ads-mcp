@@ -9,14 +9,13 @@ from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
 def register_tools(mcp: FastMCP):
-    @mcp.tool()
     async def fetch_meta_campaigns_by_name(
         act_id: str,
         campaign_names: List[str],
         metrics: List[str],
         date_preset: Optional[str] = None,
         time_range: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> Dict:
         """Fetches Meta campaigns by name with insights data and proper date handling.
 
         This function efficiently retrieves multiple campaigns by their names and includes
@@ -37,7 +36,7 @@ def register_tools(mcp: FastMCP):
                 keys in 'YYYY-MM-DD' format. Takes precedence over date_preset.
 
         Returns:
-            str: JSON string containing matched campaigns with insights data and summary.
+            Dict: Dictionary containing matched campaigns with insights data and summary.
         """
         access_token = config.META_ACCESS_TOKEN
         matched_campaigns = []
@@ -47,7 +46,7 @@ def register_tools(mcp: FastMCP):
             name_filter = [
                 {"field": "name", "operator": "EQUAL", "value": requested_name}
             ]
-            
+
             campaigns_url = f"{FB_GRAPH_URL}/{act_id}/campaigns"
             campaigns_params = {
                 "access_token": access_token,
@@ -132,16 +131,15 @@ def register_tools(mcp: FastMCP):
             },
         }
 
-        return json.dumps(result, indent=2)
+        return result
 
-    @mcp.tool()
     async def fetch_meta_ad_sets_by_name(
         act_id: str,
         adset_names: List[str],
         metrics: List[str],
         date_preset: Optional[str] = None,
         time_range: Optional[Dict[str, str]] = None,
-    ) -> str:
+    ) -> Dict:
         """Fetches Meta ad sets by name with insights data and proper date handling.
 
         This function efficiently retrieves multiple ad sets by their names and includes
@@ -162,7 +160,7 @@ def register_tools(mcp: FastMCP):
                 keys in 'YYYY-MM-DD' format. Takes precedence over date_preset.
 
         Returns:
-            str: JSON string containing matched ad sets with insights data and summary.
+            Dict: Dictionary containing matched ad sets with insights data and summary.
         """
         access_token = config.META_ACCESS_TOKEN
         matched_adsets = []
@@ -255,144 +253,153 @@ def register_tools(mcp: FastMCP):
             },
         }
 
-        return json.dumps(result, indent=2)
+        return result
 
     @mcp.tool()
     async def fetch_meta_objects_by_name(
         act_id: str,
         object_names: List[str],
-        object_type: str,
         metrics: List[str],
         date_preset: Optional[str] = None,
         time_range: Optional[Dict[str, str]] = None,
-    ) -> str:
-        """Generic function to fetch Meta objects (campaigns, ad sets, ads) by name with insights.
+    ) -> Dict:
+        """Unified tool to fetch Meta campaigns and ad sets by name with automatic fallback.
+
+        This function automatically tries to find objects by name, first searching for campaigns,
+        then searching for ad sets for any names not found as campaigns. Each returned object
+        includes an 'object_type' field to identify whether it's a campaign or ad set.
 
         Args:
-            act_id (str): The Meta ad account ID with 'act_' prefix (e.g., 'act_1234567890').
-            object_names (List[str]): List of object names to fetch.
-            object_type (str): Type of object to fetch. Options: 'campaign', 'adset', 'ad'.
+            act_id (str): The Meta ad account ID with 'act_' prefix.
+                Example format 'act_1234567890'
+            object_names (List[str]): List of object names to fetch. Uses exact name
+                matching only. The function will automatically try each name as a campaign
+                first, then as an ad set if not found. Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve.
-            date_preset (Optional[str]): Predefined relative date range.
-            time_range (Optional[Dict[str, str]]): Custom date range with 'since' and 'until'.
+                Common options are 'impressions', 'clicks', 'spend', 'reach', 'ctr',
+                'cpc', 'cpm', 'frequency', 'conversions', 'cost_per_conversion'
+            date_preset (Optional[str], optional): Predefined relative date range.
+                Valid options are 'today', 'yesterday', 'this_month', 'last_month',
+                'this_quarter', 'last_quarter', 'this_year', 'last_year', 'last_3d',
+                'last_7d', 'last_14d', 'last_28d', 'last_30d', 'last_90d',
+                'last_week_mon_sun', 'last_week_sun_sat', 'this_week_mon_today',
+                'this_week_sun_today', 'maximum'. Cannot be used with time_range.
+                Defaults to None.
+            time_range (Optional[Dict[str, str]], optional): Custom date range with
+                'since' and 'until' keys in 'YYYY-MM-DD' format. Takes precedence over
+                date_preset if both are provided. Must contain both 'since' and 'until'
+                keys. Defaults to None.
 
         Returns:
-            str: JSON string containing matched objects with insights data and summary.
-        """
-        access_token = config.META_ACCESS_TOKEN
-        
-        # Map object type to API endpoint
-        endpoint_map = {
-            "campaign": "campaigns",
-            "adset": "adsets",
-            "ad": "ads",
-        }
-        
-        level_map = {
-            "campaign": "campaign",
-            "adset": "adset",
-            "ad": "ad",
-        }
-        
-        if object_type not in endpoint_map:
-            return json.dumps(
-                {
-                    "error": f"Invalid object_type: {object_type}. Must be 'campaign', 'adset', or 'ad'."
-                },
-                indent=2,
+            Dict: Response dictionary containing the following structure:
+                - 'data' (List[Dict]): Combined list of found objects (campaigns and ad sets), each containing:
+                    - All standard campaign/ad set fields (id, name, effective_status)
+                    - 'object_type' (str): Either "campaign" or "adset"
+                    - 'requested_name' (str): Originally requested name
+                    - 'matched_name' (str): Actual name that was matched
+                    - 'insights' (List[Dict]): Performance insights data
+                    - 'insights_error' (str, optional): Error message if insights failed
+                - 'summary' (Dict): Summary information containing:
+                    - 'requested_names' (List[str]): All originally requested names
+                    - 'found_as_campaigns' (List[str]): Names found as campaigns
+                    - 'found_as_adsets' (List[str]): Names found as ad sets
+                    - 'not_found' (List[str]): Names not found as either campaigns or ad sets
+                    - 'total_objects_found' (int): Total number of objects found
+                    - 'campaigns_count' (int): Number of campaigns found
+                    - 'adsets_count' (int): Number of ad sets found
+                    - 'objects_with_insights' (int): Number with successful insights
+
+        Examples:
+            Fetch objects with automatic campaign/ad set detection
+
+            ```python
+            result = fetch_meta_objects_by_name(
+                act_id="act_1234567890",
+                object_names=["Summer Sale Campaign", "Holiday Ad Set", "Black Friday"],
+                metrics=["impressions", "clicks", "spend"],
+                date_preset="yesterday"
             )
-        
-        endpoint = endpoint_map[object_type]
-        level = level_map[object_type]
-        matched_objects = []
+            # Returns campaigns and ad sets found, each with object_type field
+            ```
 
-        # Fetch each object with exact match
-        for requested_name in object_names:
-            name_filter = [
-                {"field": "name", "operator": "EQUAL", "value": requested_name}
-            ]
-            
-            objects_url = f"{FB_GRAPH_URL}/{act_id}/{endpoint}"
-            objects_params = {
-                "access_token": access_token,
-                "fields": "id,name,effective_status",
-                "filtering": json.dumps(name_filter),
-                "limit": 500,
-            }
+            Fetch objects with custom date range
 
-            try:
-                object_response = await make_graph_api_call(objects_url, objects_params)
+            ```python
+            result = fetch_meta_objects_by_name(
+                act_id="act_1234567890",
+                object_names=["Q4 Campaign", "Retargeting Audience"],
+                metrics=["impressions", "spend", "conversions"],
+                time_range={"since": "2023-11-24", "until": "2023-11-27"}
+            )
+            # Automatically tries as campaigns first, then ad sets for unmatched names
+            ```
 
-                if object_response.get("data"):
-                    for obj in object_response.get("data", []):
-                        obj["requested_name"] = requested_name
-                        obj["matched_name"] = requested_name
-                        matched_objects.append(obj)
-            except Exception as e:
-                print(f"Error fetching {object_type} '{requested_name}': {str(e)}")
+        Note:
+            This function implements intelligent fallback:
+            1. Tries all names as campaigns first
+            2. For unmatched names, tries them as ad sets
+            3. Returns combined results with clear object type identification
+            Each object in the result includes an 'object_type' field for easy identification.
+        """
+        # Step 1: Try fetching all names as campaigns first
+        campaigns_result = await fetch_meta_campaigns_by_name(
+            act_id=act_id,
+            campaign_names=object_names,
+            metrics=metrics,
+            date_preset=date_preset,
+            time_range=time_range,
+        )
 
-        # Fetch insights for each matched object
-        objects_with_insights = []
+        # Step 2: Identify which names weren't found as campaigns
+        unmatched_campaign_names = campaigns_result["summary"]["unmatched_requests"]
 
-        for obj in matched_objects:
-            try:
-                insights_url = f"{FB_GRAPH_URL}/{obj['id']}/insights"
-                insights_params = {
-                    "access_token": access_token,
-                    "fields": ",".join(metrics),
-                    "level": level,
-                }
+        # Step 3: Try fetching unmatched names as ad sets
+        adsets_result = None
+        if unmatched_campaign_names:
+            adsets_result = await fetch_meta_ad_sets_by_name(
+                act_id=act_id,
+                adset_names=unmatched_campaign_names,
+                metrics=metrics,
+                date_preset=date_preset,
+                time_range=time_range,
+            )
 
-                if time_range:
-                    insights_params["time_range"] = json.dumps(time_range)
-                elif date_preset:
-                    insights_params["date_preset"] = date_preset
+        # Step 4: Combine results
+        all_objects = []
 
-                insights_response = await make_graph_api_call(
-                    insights_url, insights_params
-                )
+        # Add campaigns with object_type field
+        for campaign in campaigns_result["data"]:
+            campaign["object_type"] = "campaign"
+            all_objects.append(campaign)
 
-                object_with_insights = {
-                    **obj,
-                    "insights": insights_response.get("data", []),
-                }
-                objects_with_insights.append(object_with_insights)
+        # Add ad sets with object_type field
+        if adsets_result:
+            for adset in adsets_result["data"]:
+                adset["object_type"] = "adset"
+                all_objects.append(adset)
 
-            except Exception as e:
-                object_with_insights = {
-                    **obj,
-                    "insights": [],
-                    "insights_error": str(e),
-                }
-                objects_with_insights.append(object_with_insights)
+        # Step 5: Calculate summary statistics
+        found_as_campaigns = [obj["requested_name"] for obj in campaigns_result["data"]]
+        found_as_adsets = []
+        if adsets_result:
+            found_as_adsets = [obj["requested_name"] for obj in adsets_result["data"]]
 
-        # Create summary
-        name_mappings = {}
-        matched_requested_names = []
+        all_found_names = found_as_campaigns + found_as_adsets
+        not_found = [name for name in object_names if name not in all_found_names]
 
-        for obj in matched_objects:
-            requested = obj.get("requested_name", "")
-            matched = obj.get("matched_name", "")
-            if requested:
-                name_mappings[requested] = matched
-                matched_requested_names.append(requested)
-
-        unmatched_requests = [
-            name for name in object_names if name not in matched_requested_names
-        ]
-
-        result = {
-            "data": objects_with_insights,
+        # Step 6: Return combined results
+        return {
+            "data": all_objects,
             "summary": {
                 "requested_names": object_names,
-                "object_type": object_type,
-                f"total_matched_{endpoint}": len(matched_objects),
-                f"{endpoint}_with_insights": len(
-                    [o for o in objects_with_insights if "insights_error" not in o]
+                "found_as_campaigns": found_as_campaigns,
+                "found_as_adsets": found_as_adsets,
+                "not_found": not_found,
+                "total_objects_found": len(all_objects),
+                "campaigns_count": len(campaigns_result["data"]),
+                "adsets_count": len(adsets_result["data"]) if adsets_result else 0,
+                "objects_with_insights": len(
+                    [obj for obj in all_objects if "insights_error" not in obj]
                 ),
-                "unmatched_requests": unmatched_requests,
-                "name_mappings": name_mappings,
             },
         }
-
-        return json.dumps(result, indent=2)
