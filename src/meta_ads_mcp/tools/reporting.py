@@ -5,7 +5,11 @@ from typing import Optional, List, Dict, Any
 from fastmcp import FastMCP
 
 from meta_ads_mcp.config import config
-from meta_ads_mcp.meta_api_client.client import make_graph_api_call
+from meta_ads_mcp.meta_api_client.client import (
+    make_graph_api_call,
+    make_graph_api_batch_call,
+    build_relative_url,
+)
 from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
 
 
@@ -197,7 +201,7 @@ def register_tools(mcp: FastMCP):
         return json.dumps(data, indent=2)
 
     @mcp.tool()
-    async def get_campaign_insights(
+    async def get_campaign_insights_by_id(
         campaign_id: str,
         fields: Optional[List[str]] = None,
         date_preset: str = "last_30d",
@@ -291,7 +295,7 @@ def register_tools(mcp: FastMCP):
         return json.dumps(data, indent=2)
 
     @mcp.tool()
-    async def get_adset_insights(
+    async def get_adset_insights_by_id(
         adset_id: str,
         fields: Optional[List[str]] = None,
         date_preset: str = "last_30d",
@@ -385,7 +389,7 @@ def register_tools(mcp: FastMCP):
         return json.dumps(data, indent=2)
 
     @mcp.tool()
-    async def get_ad_insights(
+    async def get_ad_insights_by_id(
         ad_id: str,
         fields: Optional[List[str]] = None,
         date_preset: str = "last_30d",
@@ -480,6 +484,432 @@ def register_tools(mcp: FastMCP):
         data = await make_graph_api_call(url, params)
 
         return json.dumps(data, indent=2)
+
+    @mcp.tool()
+    async def get_multiple_campaigns_insights_by_ids(
+        campaign_ids: List[str],
+        fields: Optional[List[str]] = None,
+        date_preset: str = "last_30d",
+        time_range: Optional[Dict[str, str]] = None,
+        time_ranges: Optional[List[Dict[str, str]]] = None,
+        time_increment: str = "all_days",
+        action_attribution_windows: Optional[List[str]] = None,
+        action_breakdowns: Optional[List[str]] = None,
+        action_report_time: Optional[str] = None,
+        breakdowns: Optional[List[str]] = None,
+        default_summary: bool = False,
+        use_account_attribution_setting: bool = False,
+        use_unified_attribution_setting: bool = True,
+        filtering: Optional[List[dict]] = None,
+        sort: Optional[str] = None,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        offset: Optional[int] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        locale: Optional[str] = None,
+    ) -> Dict:
+        """Retrieves performance insights for multiple Facebook ad campaigns in batch.
+
+        Uses Facebook's Batch API to efficiently fetch insights for multiple campaigns
+        in a single request (up to 50 campaigns per API call). Handles errors per
+        campaign without failing the entire batch.
+
+        Args:
+            campaign_ids (List[str]): List of campaign IDs to fetch insights for.
+            fields (Optional[List[str]]): Specific metrics. Examples: 'campaign_name', 'account_id',
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+            date_preset (str): Predefined relative time range. Default: 'last_30d'.
+            time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
+            time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
+            time_increment (str): Time granularity. Default: 'all_days'.
+            action_attribution_windows (Optional[List[str]]): Attribution windows.
+            action_breakdowns (Optional[List[str]]): Segments 'actions' results.
+            action_report_time (Optional[str]): When actions are counted. Default: 'mixed'.
+            breakdowns (Optional[List[str]]): Segments results by dimensions.
+            default_summary (bool): Include additional summary row. Default: False.
+            use_account_attribution_setting (bool): Use ad account attribution settings. Default: False.
+            use_unified_attribution_setting (bool): Use unified attribution settings. Default: True.
+            filtering (Optional[List[dict]]): Filter objects.
+            sort (Optional[str]): Sort field and direction.
+            limit (Optional[int]): Maximum results per page.
+            after (Optional[str]): Pagination cursor for next page.
+            before (Optional[str]): Pagination cursor for previous page.
+            offset (Optional[int]): Number of results to skip.
+            since (Optional[str]): Start timestamp.
+            until (Optional[str]): End timestamp.
+            locale (Optional[str]): Locale for text responses.
+
+        Returns:
+            Dict: Dictionary containing:
+                - 'results' (List[Dict]): List of results, each with:
+                    - 'campaign_id' (str): The campaign ID
+                    - 'insights' (Dict): Insights data if successful
+                    - 'error' (str|null): Error message if failed, null if successful
+                - 'summary' (Dict): Summary with:
+                    - 'total_requested' (int): Number of campaigns requested
+                    - 'successful' (int): Number of successful fetches
+                    - 'failed' (int): Number of failed fetches
+        """
+        access_token = config.META_ACCESS_TOKEN
+
+        # Build params for insights request
+        params = {"access_token": access_token}
+        params = _build_insights_params(
+            params=params,
+            fields=fields,
+            date_preset=date_preset,
+            time_range=time_range,
+            time_ranges=time_ranges,
+            time_increment=time_increment,
+            level="campaign",
+            action_attribution_windows=action_attribution_windows,
+            action_breakdowns=action_breakdowns,
+            action_report_time=action_report_time,
+            breakdowns=breakdowns,
+            default_summary=default_summary,
+            use_account_attribution_setting=use_account_attribution_setting,
+            use_unified_attribution_setting=use_unified_attribution_setting,
+            filtering=filtering,
+            sort=sort,
+            limit=limit,
+            after=after,
+            before=before,
+            offset=offset,
+            since=since,
+            until=until,
+            locale=locale,
+        )
+
+        # Build batch requests
+        batch_requests = []
+        for campaign_id in campaign_ids:
+            relative_url = build_relative_url(campaign_id, "insights", params)
+            batch_requests.append({"method": "GET", "relative_url": relative_url})
+
+        # Execute batch request
+        batch_responses = await make_graph_api_batch_call(batch_requests, access_token)
+
+        # Parse responses
+        results = []
+        successful = 0
+        failed = 0
+
+        for i, batch_response in enumerate(batch_responses):
+            campaign_id = campaign_ids[i]
+            code = batch_response.get("code")
+
+            if code == 200:
+                results.append({
+                    "campaign_id": campaign_id,
+                    "insights": batch_response.get("body"),
+                    "error": None,
+                })
+                successful += 1
+            else:
+                error_body = batch_response.get("body", {})
+                error_message = error_body.get("error", {}).get("message", f"HTTP {code}")
+                results.append({
+                    "campaign_id": campaign_id,
+                    "insights": None,
+                    "error": error_message,
+                })
+                failed += 1
+
+        return {
+            "results": results,
+            "summary": {
+                "total_requested": len(campaign_ids),
+                "successful": successful,
+                "failed": failed,
+            },
+        }
+
+    @mcp.tool()
+    async def get_multiple_adsets_insights_by_ids(
+        adset_ids: List[str],
+        fields: Optional[List[str]] = None,
+        date_preset: str = "last_30d",
+        time_range: Optional[Dict[str, str]] = None,
+        time_ranges: Optional[List[Dict[str, str]]] = None,
+        time_increment: str = "all_days",
+        action_attribution_windows: Optional[List[str]] = None,
+        action_breakdowns: Optional[List[str]] = None,
+        action_report_time: Optional[str] = None,
+        breakdowns: Optional[List[str]] = None,
+        default_summary: bool = False,
+        use_account_attribution_setting: bool = False,
+        use_unified_attribution_setting: bool = True,
+        filtering: Optional[List[dict]] = None,
+        sort: Optional[str] = None,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        offset: Optional[int] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        locale: Optional[str] = None,
+    ) -> Dict:
+        """Retrieves performance insights for multiple Facebook ad sets in batch.
+
+        Uses Facebook's Batch API to efficiently fetch insights for multiple ad sets
+        in a single request (up to 50 ad sets per API call). Handles errors per
+        ad set without failing the entire batch.
+
+        Args:
+            adset_ids (List[str]): List of ad set IDs to fetch insights for.
+            fields (Optional[List[str]]): Specific metrics. Examples: 'adset_name', 'account_id',
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+            date_preset (str): Predefined relative time range. Default: 'last_30d'.
+            time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
+            time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
+            time_increment (str): Time granularity. Default: 'all_days'.
+            action_attribution_windows (Optional[List[str]]): Attribution windows.
+            action_breakdowns (Optional[List[str]]): Segments 'actions' results.
+            action_report_time (Optional[str]): When actions are counted. Default: 'mixed'.
+            breakdowns (Optional[List[str]]): Segments results by dimensions.
+            default_summary (bool): Include additional summary row. Default: False.
+            use_account_attribution_setting (bool): Use ad account attribution settings. Default: False.
+            use_unified_attribution_setting (bool): Use unified attribution settings. Default: True.
+            filtering (Optional[List[dict]]): Filter objects.
+            sort (Optional[str]): Sort field and direction.
+            limit (Optional[int]): Maximum results per page.
+            after (Optional[str]): Pagination cursor for next page.
+            before (Optional[str]): Pagination cursor for previous page.
+            offset (Optional[int]): Number of results to skip.
+            since (Optional[str]): Start timestamp.
+            until (Optional[str]): End timestamp.
+            locale (Optional[str]): Locale for text responses.
+
+        Returns:
+            Dict: Dictionary containing:
+                - 'results' (List[Dict]): List of results, each with:
+                    - 'adset_id' (str): The ad set ID
+                    - 'insights' (Dict): Insights data if successful
+                    - 'error' (str|null): Error message if failed, null if successful
+                - 'summary' (Dict): Summary with:
+                    - 'total_requested' (int): Number of ad sets requested
+                    - 'successful' (int): Number of successful fetches
+                    - 'failed' (int): Number of failed fetches
+        """
+        access_token = config.META_ACCESS_TOKEN
+
+        # Build params for insights request
+        params = {"access_token": access_token}
+        params = _build_insights_params(
+            params=params,
+            fields=fields,
+            date_preset=date_preset,
+            time_range=time_range,
+            time_ranges=time_ranges,
+            time_increment=time_increment,
+            level="adset",
+            action_attribution_windows=action_attribution_windows,
+            action_breakdowns=action_breakdowns,
+            action_report_time=action_report_time,
+            breakdowns=breakdowns,
+            default_summary=default_summary,
+            use_account_attribution_setting=use_account_attribution_setting,
+            use_unified_attribution_setting=use_unified_attribution_setting,
+            filtering=filtering,
+            sort=sort,
+            limit=limit,
+            after=after,
+            before=before,
+            offset=offset,
+            since=since,
+            until=until,
+            locale=locale,
+        )
+
+        # Build batch requests
+        batch_requests = []
+        for adset_id in adset_ids:
+            relative_url = build_relative_url(adset_id, "insights", params)
+            batch_requests.append({"method": "GET", "relative_url": relative_url})
+
+        # Execute batch request
+        batch_responses = await make_graph_api_batch_call(batch_requests, access_token)
+
+        # Parse responses
+        results = []
+        successful = 0
+        failed = 0
+
+        for i, batch_response in enumerate(batch_responses):
+            adset_id = adset_ids[i]
+            code = batch_response.get("code")
+
+            if code == 200:
+                results.append({
+                    "adset_id": adset_id,
+                    "insights": batch_response.get("body"),
+                    "error": None,
+                })
+                successful += 1
+            else:
+                error_body = batch_response.get("body", {})
+                error_message = error_body.get("error", {}).get("message", f"HTTP {code}")
+                results.append({
+                    "adset_id": adset_id,
+                    "insights": None,
+                    "error": error_message,
+                })
+                failed += 1
+
+        return {
+            "results": results,
+            "summary": {
+                "total_requested": len(adset_ids),
+                "successful": successful,
+                "failed": failed,
+            },
+        }
+
+    @mcp.tool()
+    async def get_multiple_ads_insights_by_ids(
+        ad_ids: List[str],
+        fields: Optional[List[str]] = None,
+        date_preset: str = "last_30d",
+        time_range: Optional[Dict[str, str]] = None,
+        time_ranges: Optional[List[Dict[str, str]]] = None,
+        time_increment: str = "all_days",
+        action_attribution_windows: Optional[List[str]] = None,
+        action_breakdowns: Optional[List[str]] = None,
+        action_report_time: Optional[str] = None,
+        breakdowns: Optional[List[str]] = None,
+        default_summary: bool = False,
+        use_account_attribution_setting: bool = False,
+        use_unified_attribution_setting: bool = True,
+        filtering: Optional[List[dict]] = None,
+        sort: Optional[str] = None,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        offset: Optional[int] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        locale: Optional[str] = None,
+    ) -> Dict:
+        """Retrieves performance insights for multiple Facebook ads in batch.
+
+        Uses Facebook's Batch API to efficiently fetch insights for multiple ads
+        in a single request (up to 50 ads per API call). Handles errors per
+        ad without failing the entire batch.
+
+        Args:
+            ad_ids (List[str]): List of ad IDs to fetch insights for.
+            fields (Optional[List[str]]): Specific metrics. Examples: 'ad_name', 'account_id',
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+            date_preset (str): Predefined relative time range. Default: 'last_30d'.
+            time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
+            time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
+            time_increment (str): Time granularity. Default: 'all_days'.
+            action_attribution_windows (Optional[List[str]]): Attribution windows.
+            action_breakdowns (Optional[List[str]]): Segments 'actions' results.
+            action_report_time (Optional[str]): When actions are counted. Default: 'mixed'.
+            breakdowns (Optional[List[str]]): Segments results by dimensions.
+            default_summary (bool): Include additional summary row. Default: False.
+            use_account_attribution_setting (bool): Use ad account attribution settings. Default: False.
+            use_unified_attribution_setting (bool): Use unified attribution settings. Default: True.
+            filtering (Optional[List[dict]]): Filter objects.
+            sort (Optional[str]): Sort field and direction.
+            limit (Optional[int]): Maximum results per page.
+            after (Optional[str]): Pagination cursor for next page.
+            before (Optional[str]): Pagination cursor for previous page.
+            offset (Optional[int]): Number of results to skip.
+            since (Optional[str]): Start timestamp.
+            until (Optional[str]): End timestamp.
+            locale (Optional[str]): Locale for text responses.
+
+        Returns:
+            Dict: Dictionary containing:
+                - 'results' (List[Dict]): List of results, each with:
+                    - 'ad_id' (str): The ad ID
+                    - 'insights' (Dict): Insights data if successful
+                    - 'error' (str|null): Error message if failed, null if successful
+                - 'summary' (Dict): Summary with:
+                    - 'total_requested' (int): Number of ads requested
+                    - 'successful' (int): Number of successful fetches
+                    - 'failed' (int): Number of failed fetches
+        """
+        access_token = config.META_ACCESS_TOKEN
+
+        # Build params for insights request
+        params = {"access_token": access_token}
+        params = _build_insights_params(
+            params=params,
+            fields=fields,
+            date_preset=date_preset,
+            time_range=time_range,
+            time_ranges=time_ranges,
+            time_increment=time_increment,
+            level="ad",
+            action_attribution_windows=action_attribution_windows,
+            action_breakdowns=action_breakdowns,
+            action_report_time=action_report_time,
+            breakdowns=breakdowns,
+            default_summary=default_summary,
+            use_account_attribution_setting=use_account_attribution_setting,
+            use_unified_attribution_setting=use_unified_attribution_setting,
+            filtering=filtering,
+            sort=sort,
+            limit=limit,
+            after=after,
+            before=before,
+            offset=offset,
+            since=since,
+            until=until,
+            locale=locale,
+        )
+
+        # Build batch requests
+        batch_requests = []
+        for ad_id in ad_ids:
+            relative_url = build_relative_url(ad_id, "insights", params)
+            batch_requests.append({"method": "GET", "relative_url": relative_url})
+
+        # Execute batch request
+        batch_responses = await make_graph_api_batch_call(batch_requests, access_token)
+
+        # Parse responses
+        results = []
+        successful = 0
+        failed = 0
+
+        for i, batch_response in enumerate(batch_responses):
+            ad_id = ad_ids[i]
+            code = batch_response.get("code")
+
+            if code == 200:
+                results.append({
+                    "ad_id": ad_id,
+                    "insights": batch_response.get("body"),
+                    "error": None,
+                })
+                successful += 1
+            else:
+                error_body = batch_response.get("body", {})
+                error_message = error_body.get("error", {}).get("message", f"HTTP {code}")
+                results.append({
+                    "ad_id": ad_id,
+                    "insights": None,
+                    "error": error_message,
+                })
+                failed += 1
+
+        return {
+            "results": results,
+            "summary": {
+                "total_requested": len(ad_ids),
+                "successful": successful,
+                "failed": failed,
+            },
+        }
 
     @mcp.tool()
     async def fetch_pagination_url(url: str) -> str:
