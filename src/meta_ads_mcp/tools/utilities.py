@@ -167,28 +167,3 @@ def register_tools(mcp: FastMCP):
         clean_data = _decode_unicode_escapes(raw_data)
 
         return json.dumps(clean_data, indent=2, ensure_ascii=False)
-
-    @mcp.tool()
-    async def fetch_product_sets(
-        act_id: str, fields: Optional[List[str]] = None
-    ) -> str:
-        """Fetch product catalog sets for an ad account.
-
-        Args:
-            act_id (str): The Ad Account ID (format: act_XXXXXXXXXX).
-            fields (List[str]): Specific fields to retrieve. Common fields include:
-                'id', 'name', 'product_catalog', 'filter', 'product_count'.
-
-        Returns:
-            str: JSON string containing list of product sets.
-        """
-        access_token = config.META_ACCESS_TOKEN
-        url = f"{FB_GRAPH_URL}/{act_id}/product_sets"
-
-        params = {"access_token": access_token}
-        if fields:
-            params["fields"] = ",".join(fields)
-
-        data = await make_graph_api_call(url, params)
-
-        return json.dumps(data, indent=2, ensure_ascii=False)
