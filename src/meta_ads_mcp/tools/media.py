@@ -7,6 +7,7 @@ import re
 import io
 import tempfile
 from typing import Optional, List, Dict, Any, Tuple
+from urllib.parse import urlparse
 
 from fastmcp import FastMCP
 
@@ -34,6 +35,67 @@ except ImportError:
         VIDEO_PROCESSING_AVAILABLE = False
     except ImportError:
         VIDEO_PROCESSING_AVAILABLE = False
+
+
+def _extract_domain_from_url(url: str) -> str:
+    """Extract domain from URL for use as caption.
+
+    Args:
+        url: Full URL (e.g., "https://www.example.com/path")
+
+    Returns:
+        Domain name (e.g., "example.com")
+    """
+    if not url:
+        return ""
+
+    try:
+        parsed = urlparse(url)
+        domain = parsed.netloc or parsed.path
+        # Remove 'www.' prefix if present
+        if domain.startswith("www."):
+            domain = domain[4:]
+        return domain
+    except Exception:
+        return ""
+
+
+def _validate_ad_creative_params(
+    headline: str, caption: str, instagram_user_id: Optional[str]
+) -> List[str]:
+    """Validate ad creative parameters and return list of warnings.
+
+    Args:
+        headline: Ad headline text
+        caption: Link caption text
+        instagram_user_id: Instagram account ID (if targeting Instagram)
+
+    Returns:
+        List of warning messages (empty if no issues)
+    """
+    warnings = []
+
+    # Headline validation
+    if instagram_user_id and len(headline) > 40:
+        warnings.append(
+            f"Headline is {len(headline)} characters ('{headline}'). "
+            f"Instagram recommends max 40 characters for optimal display."
+        )
+    elif len(headline) > 60:
+        warnings.append(
+            f"Headline is {len(headline)} characters ('{headline}'). "
+            f"Facebook recommends max 60 characters for optimal display."
+        )
+
+    # Caption validation
+    if caption and len(caption) > 30:
+        warnings.append(
+            f"Caption is {len(caption)} characters ('{caption}'). "
+            f"Caption should be a short link caption (like 'example.com'), not a description. "
+            f"Long captions may cause 'Invalid parameter' errors."
+        )
+
+    return warnings
 
 
 def _parse_s3_url(s3_url: str) -> Tuple[str, str]:
@@ -306,18 +368,28 @@ async def _create_single_image_creative(
     caption: str,
     call_to_action: str,
     link_url: str,
+    description: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a single image ad creative."""
+    link_data = {
+        "message": message,
+        "name": headline,
+        "call_to_action": {"type": call_to_action, "value": {"link": link_url}},
+        "link": link_url,
+        "image_hash": image_item["hash"],
+    }
+
+    # Only add caption if it's provided and not empty
+    if caption:
+        link_data["caption"] = caption
+
+    # Add description if provided (may not work on all placements)
+    if description:
+        link_data["description"] = description
+
     object_story_spec = {
         "page_id": page_id,
-        "link_data": {
-            "message": message,
-            "name": headline,
-            "caption": caption,
-            "call_to_action": {"type": call_to_action, "value": {"link": link_url}},
-            "link": link_url,
-            "image_hash": image_item["hash"],
-        },
+        "link_data": link_data,
     }
     if ig_id:
         object_story_spec["instagram_user_id"] = ig_id
@@ -343,28 +415,35 @@ async def _create_carousel_creative(
     call_to_action: str,
     link_url: str,
     folder_name: str,
+    description: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create a carousel ad creative."""
     child_attachments = []
     for media_item in media_items:
         if media_item["type"] == "image":
-            child_attachments.append(
-                {
-                    "image_hash": media_item["hash"],
-                    "link": link_url,
-                    "name": headline,
-                    "caption": caption,
-                }
-            )
+            child_attachment = {
+                "image_hash": media_item["hash"],
+                "link": link_url,
+                "name": headline,
+            }
+            # Only add caption if provided
+            if caption:
+                child_attachment["caption"] = caption
+            # Add description if provided
+            if description:
+                child_attachment["description"] = description
+            child_attachments.append(child_attachment)
+
+    link_data = {
+        "message": message,
+        "link": link_url,
+        "child_attachments": child_attachments,
+        "call_to_action": {"type": call_to_action, "value": {"link": link_url}},
+    }
 
     object_story_spec = {
         "page_id": page_id,
-        "link_data": {
-            "message": message,
-            "link": link_url,
-            "child_attachments": child_attachments,
-            "call_to_action": {"type": call_to_action, "value": {"link": link_url}},
-        },
+        "link_data": link_data,
     }
     if ig_id:
         object_story_spec["instagram_user_id"] = ig_id
@@ -427,10 +506,11 @@ def register_tools(mcp: FastMCP):
         message: str,
         headline: str,
         page_id: str,
+        link_url: str = "",
         caption: str = "",
+        description: str = "",
         call_to_action: str = "LEARN_MORE",
         status: str = "PAUSED",
-        link_url: str = "",
         instagram_user_id: Optional[str] = None,
         tracking_specs: Optional[List[Dict[str, Any]]] = None,
         max_files: int = 20,
@@ -451,14 +531,18 @@ def register_tools(mcp: FastMCP):
             s3_folder_url (str): S3 URL pointing to the folder containing media files
                 (e.g., "https://my-bucket.s3.us-east-1.amazonaws.com/campaign-assets/" or
                 "s3://my-bucket/campaign-assets/").
-            message (str): Primary ad text/body.
-            headline (str): Ad headline text.
+            message (str): Primary ad text/body that appears above the creative.
+            headline (str): Ad headline text (recommended max 40 chars for Instagram, 60 for Facebook).
             page_id (str): Facebook Page ID for the ad.
-            caption (str): Optional link caption.
+            link_url (str): Destination URL for the ad.
+            caption (str): Optional SHORT link caption (e.g., "example.com"). If empty, domain
+                will be auto-extracted from link_url. If provided and too long (>30 chars),
+                will be replaced with auto-extracted domain.
+            description (str): Optional longer description text. May not display on all placements.
+                For primary ad text, use the 'message' parameter instead.
             call_to_action (str): CTA button type (default "LEARN_MORE").
             status (str): Initial delivery status (default "PAUSED").
-            link_url (str): Destination URL for the ad.
-            instagram_user_id (str): Optional Instagram account ID.
+            instagram_user_id (str): Optional Instagram account ID for Instagram placement.
             tracking_specs (List[Dict]): Optional custom tracking specifications.
             max_files (int): Maximum number of files to process (default 20).
 
@@ -497,6 +581,28 @@ def register_tools(mcp: FastMCP):
             return json.dumps(
                 {"error": f"Missing required fields: {', '.join(missing)}"}, indent=2
             )
+
+        # Validate and fix caption parameter
+        original_caption = caption
+        warnings = []
+
+        # Auto-extract domain from link_url if caption is empty or too long
+        if not caption or len(caption) > 30:
+            auto_caption = _extract_domain_from_url(link_url)
+            if len(caption) > 30:
+                warnings.append(
+                    f"Caption too long ({len(caption)} chars): '{caption[:50]}...'. "
+                    f"Using auto-extracted domain '{auto_caption}' instead. "
+                    f"Caption should be a short link caption (e.g., 'example.com'), not a description. "
+                    f"Use the 'description' parameter for longer text."
+                )
+            caption = auto_caption
+
+        # Validate parameters and collect warnings
+        param_warnings = _validate_ad_creative_params(
+            headline, caption, instagram_user_id
+        )
+        warnings.extend(param_warnings)
 
         try:
             media_files = await _list_s3_folder_contents(s3_folder_url)
@@ -633,6 +739,7 @@ def register_tools(mcp: FastMCP):
                         caption,
                         call_to_action,
                         link_url,
+                        description,
                     )
                     if "error" not in single_img_creative:
                         adp = {
@@ -680,6 +787,7 @@ def register_tools(mcp: FastMCP):
                         call_to_action,
                         link_url,
                         name,
+                        description,
                     )
                     if "error" not in carr:
                         adp = {
@@ -767,6 +875,8 @@ def register_tools(mcp: FastMCP):
                 "videos": len(vids),
                 "creative_type": creative_type,
             }
+            if warnings:
+                result["warnings"] = warnings
             if processing_errors:
                 result["errors"] = processing_errors
             if not created:
