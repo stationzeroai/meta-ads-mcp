@@ -69,6 +69,22 @@ def handle_error_response(response: Dict) -> None:
     error_code = error_info.get("code", None)
     exception_class = EXCEPTION_MAPPING.get(error_code, MetaApiError)
 
-    raise exception_class(
-        {"error": {"message": error_info.get("message", "Unknown error")}}
-    )
+    # Capture full error details for better debugging
+    detailed_error = {
+        "error": {
+            "message": error_info.get("message", "Unknown error"),
+            "code": error_code,
+        }
+    }
+
+    # Add optional fields if present
+    if "error_subcode" in error_info:
+        detailed_error["error"]["error_subcode"] = error_info["error_subcode"]
+    if "error_user_title" in error_info:
+        detailed_error["error"]["error_user_title"] = error_info["error_user_title"]
+    if "error_user_msg" in error_info:
+        detailed_error["error"]["error_user_msg"] = error_info["error_user_msg"]
+    if "fbtrace_id" in error_info:
+        detailed_error["error"]["fbtrace_id"] = error_info["fbtrace_id"]
+
+    raise exception_class(detailed_error)
