@@ -80,19 +80,10 @@ def _get_s3_client():
     if not S3_AVAILABLE:
         raise ImportError("boto3 not installed. Install with: pip install boto3")
 
-    aws_access_key_id = config.AWS_ACCESS_KEY_ID
-    aws_secret_access_key = config.AWS_SECRET_ACCESS_KEY
-    region_name = config.AWS_S3_REGION or config.AWS_REGION
-
-    if not aws_access_key_id or not aws_secret_access_key:
-        raise ValueError(
-            "AWS credentials not found. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables."
-        )
-
     session = boto3.Session(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-        region_name=region_name,
+        aws_access_key_id=config.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=config.AWS_SECRET_ACCESS_KEY,
+        region_name=config.AWS_S3_REGION or config.AWS_REGION,
     )
     return session.client("s3")
 
@@ -475,10 +466,10 @@ def register_tools(mcp: FastMCP):
             str: JSON string with created ad IDs and summary, or error details.
 
         Note:
-            Requires AWS credentials in environment variables:
-            - AWS_ACCESS_KEY_ID
-            - AWS_SECRET_ACCESS_KEY
-            - AWS_REGION (optional, defaults to us-east-1)
+            Requires AWS credentials (validated at application startup):
+            - AWS_ACCESS_KEY_ID (required)
+            - AWS_SECRET_ACCESS_KEY (required)
+            - AWS_REGION (optional, defaults to us-west-2)
             - AWS_S3_REGION (deprecated, use AWS_REGION instead)
         """
         if not S3_AVAILABLE:
