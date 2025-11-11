@@ -134,8 +134,10 @@ def register_tools(mcp: FastMCP):
         Args:
             act_id (str): The target ad account ID, prefixed with 'act_', e.g., 'act_1234567890'.
             fields (Optional[List[str]]): Specific metrics and fields to retrieve. Common examples:
-                'account_currency', 'account_id', 'account_name', 'actions', 'clicks', 'conversions',
+                'account_currency', 'account_id', 'account_name', 'actions', 'action_values', 'clicks', 'conversions',
                 'cpc', 'cpm', 'cpp', 'ctr', 'frequency', 'impressions', 'reach', 'spend', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
+                Common purchase action types: 'offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'mobile_app_purchase'.
             date_preset (str): Predefined relative time range. Options: 'today', 'yesterday', 'this_month',
                 'last_month', 'this_quarter', 'maximum', 'last_3d', 'last_7d', 'last_14d', 'last_28d',
                 'last_30d', 'last_90d', 'last_week_mon_sun', 'last_week_sun_sat', 'last_quarter',
@@ -231,8 +233,10 @@ def register_tools(mcp: FastMCP):
         Args:
             campaign_id (str): The ID of the target Facebook ad campaign.
             fields (Optional[List[str]]): Specific metrics. Examples: 'campaign_name', 'account_id',
-                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
-                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'action_values', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
+                Common purchase action types: 'offsite_conversion.fb_pixel_purchase', 'omni_purchase', 'mobile_app_purchase'.
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
@@ -326,7 +330,8 @@ def register_tools(mcp: FastMCP):
             adset_id (str): The ID of the target ad set.
             fields (Optional[List[str]]): Specific metrics. Examples: 'adset_name', 'campaign_name',
                 'account_id', 'impressions', 'clicks', 'spend', 'ctr', 'reach', 'frequency',
-                'actions', 'conversions', 'cpc', 'cpm', 'cpp', 'cost_per_action_type'.
+                'actions', 'action_values', 'conversions', 'cpc', 'cpm', 'cpp', 'cost_per_action_type', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects.
@@ -420,10 +425,11 @@ def register_tools(mcp: FastMCP):
             ad_id (str): The ID of the target ad.
             fields (Optional[List[str]]): Specific metrics. Examples: 'ad_name', 'adset_name',
                 'campaign_name', 'account_id', 'impressions', 'clicks', 'spend', 'ctr', 'cpc',
-                'cpm', 'cpp', 'reach', 'frequency', 'actions', 'conversions', 'cost_per_action_type',
+                'cpm', 'cpp', 'reach', 'frequency', 'actions', 'action_values', 'conversions', 'cost_per_action_type',
                 'inline_link_clicks', 'inline_post_engagement', 'unique_clicks', 'video_p25_watched_actions',
                 'video_p50_watched_actions', 'video_p75_watched_actions', 'video_p100_watched_actions',
-                'website_ctr', 'website_purchases'.
+                'website_ctr', 'website_purchases', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects.
@@ -519,8 +525,9 @@ def register_tools(mcp: FastMCP):
         Args:
             campaign_ids (List[str]): List of campaign IDs to fetch insights for.
             fields (Optional[List[str]]): Specific metrics. Examples: 'campaign_name', 'account_id',
-                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
-                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'action_values', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
@@ -661,8 +668,9 @@ def register_tools(mcp: FastMCP):
         Args:
             adset_ids (List[str]): List of ad set IDs to fetch insights for.
             fields (Optional[List[str]]): Specific metrics. Examples: 'adset_name', 'account_id',
-                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
-                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'action_values', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.
@@ -803,8 +811,9 @@ def register_tools(mcp: FastMCP):
         Args:
             ad_ids (List[str]): List of ad IDs to fetch insights for.
             fields (Optional[List[str]]): Specific metrics. Examples: 'ad_name', 'account_id',
-                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'objective',
-                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency'.
+                'impressions', 'clicks', 'spend', 'ctr', 'reach', 'actions', 'action_values', 'objective',
+                'cost_per_action_type', 'conversions', 'cpc', 'cpm', 'cpp', 'frequency', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (str): Predefined relative time range. Default: 'last_30d'.
             time_range (Optional[Dict[str, str]]): Specific time range {'since':'YYYY-MM-DD','until':'YYYY-MM-DD'}.
             time_ranges (Optional[List[Dict[str, str]]]): Array of time range objects for comparison.

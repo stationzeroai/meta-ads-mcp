@@ -28,7 +28,8 @@ def register_tools(mcp: FastMCP):
                 matching only. Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve. Common options:
                 'impressions', 'clicks', 'spend', 'reach', 'ctr', 'cpc', 'cpm', 'frequency',
-                'conversions', 'cost_per_conversion'.
+                'conversions', 'cost_per_conversion', 'actions', 'action_values', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (Optional[str]): Predefined relative date range. Valid options:
                 'today', 'yesterday', 'this_month', 'last_month', 'last_7d', 'last_30d', etc.
                 Cannot be used with time_range.
@@ -152,7 +153,8 @@ def register_tools(mcp: FastMCP):
                 matching only. Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve. Common options:
                 'impressions', 'clicks', 'spend', 'reach', 'ctr', 'cpc', 'cpm', 'frequency',
-                'conversions', 'cost_per_conversion'.
+                'conversions', 'cost_per_conversion', 'actions', 'action_values', 'purchase_roas'.
+                Note: Use 'actions' for conversion counts and 'action_values' for monetary values (e.g., purchase revenue).
             date_preset (Optional[str]): Predefined relative date range. Valid options:
                 'today', 'yesterday', 'this_month', 'last_month', 'last_7d', 'last_30d', etc.
                 Cannot be used with time_range.
