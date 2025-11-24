@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Optional, List, Dict
 
 from fastmcp import FastMCP
@@ -6,6 +7,41 @@ from fastmcp import FastMCP
 from meta_ads_mcp.config import config
 from meta_ads_mcp.meta_api_client.client import make_graph_api_call
 from meta_ads_mcp.meta_api_client.constants import FB_GRAPH_URL
+
+
+def _normalize_for_matching(name: str) -> str:
+    """
+    Normalize a string for fuzzy matching.
+    Removes all whitespace and converts to lowercase.
+
+    This handles cases where LLMs normalize whitespace in campaign names,
+    e.g., '[Vendas] [Adv]' becomes '[Vendas][Adv]'.
+
+    Examples:
+        "[Vendas] [Adv]" -> "[vendas][adv]"
+        "[VENDAS][ADV]" -> "[vendas][adv]"
+    """
+    return re.sub(r'\s+', '', name).lower()
+
+
+def _find_fuzzy_match(requested_name: str, candidates: list) -> dict | None:
+    """
+    Find a candidate matching the requested name after normalization.
+
+    Args:
+        requested_name: Name to search for (potentially with modified whitespace/case)
+        candidates: List of dicts with 'name' key from Meta API
+
+    Returns:
+        Matching candidate dict, or None if no match
+    """
+    normalized_requested = _normalize_for_matching(requested_name)
+
+    for candidate in candidates:
+        if _normalize_for_matching(candidate.get('name', '')) == normalized_requested:
+            return candidate
+
+    return None
 
 
 def register_tools(mcp: FastMCP):
@@ -20,12 +56,13 @@ def register_tools(mcp: FastMCP):
 
         This function efficiently retrieves multiple campaigns by their names and includes
         their insights data with proper date range handling. It uses Facebook's native
-        filtering with exact name matching only.
+        filtering with exact name matching first, then falls back to fuzzy matching
+        (whitespace and case insensitive) if exact match fails.
 
         Args:
             act_id (str): The Meta ad account ID with 'act_' prefix (e.g., 'act_1234567890').
-            campaign_names (List[str]): List of campaign names to fetch. Uses exact name
-                matching only. Empty list returns no results.
+            campaign_names (List[str]): List of campaign names to fetch. Tries exact match
+                first, then fuzzy match (ignoring whitespace and case). Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve. Common options:
                 'impressions', 'clicks', 'spend', 'reach', 'ctr', 'cpc', 'cpm', 'frequency',
                 'conversions', 'cost_per_conversion', 'actions', 'action_values', 'purchase_roas'.
@@ -41,8 +78,9 @@ def register_tools(mcp: FastMCP):
         """
         access_token = config.META_ACCESS_TOKEN
         matched_campaigns = []
+        unmatched_names = []  # Track names needing fuzzy fallback
 
-        # Fetch each campaign with exact match
+        # Phase 1: Fetch each campaign with exact match
         for requested_name in campaign_names:
             name_filter = [
                 {"field": "name", "operator": "EQUAL", "value": requested_name}
@@ -64,10 +102,44 @@ def register_tools(mcp: FastMCP):
                 if campaign_response.get("data"):
                     for campaign in campaign_response.get("data", []):
                         campaign["requested_name"] = requested_name
-                        campaign["matched_name"] = requested_name
+                        campaign["matched_name"] = campaign["name"]
+                        campaign["match_type"] = "exact"
                         matched_campaigns.append(campaign)
+                else:
+                    unmatched_names.append(requested_name)
             except Exception as e:
                 print(f"Error fetching campaign '{requested_name}': {str(e)}")
+                unmatched_names.append(requested_name)
+
+        # Phase 2: Fuzzy fallback for unmatched names
+        if unmatched_names:
+            try:
+                # Fetch all campaigns once for fuzzy matching
+                all_campaigns_url = f"{FB_GRAPH_URL}/{act_id}/campaigns"
+                all_campaigns_params = {
+                    "access_token": access_token,
+                    "fields": "id,name,effective_status",
+                    "limit": 500,
+                }
+                all_campaigns_response = await make_graph_api_call(
+                    all_campaigns_url, all_campaigns_params
+                )
+                all_campaigns = all_campaigns_response.get("data", [])
+
+                still_unmatched = []
+                for requested_name in unmatched_names:
+                    match = _find_fuzzy_match(requested_name, all_campaigns)
+                    if match:
+                        campaign = match.copy()
+                        campaign["requested_name"] = requested_name
+                        campaign["matched_name"] = match["name"]
+                        campaign["match_type"] = "fuzzy"
+                        matched_campaigns.append(campaign)
+                    else:
+                        still_unmatched.append(requested_name)
+                unmatched_names = still_unmatched
+            except Exception as e:
+                print(f"Error during fuzzy matching: {str(e)}")
 
         # Fetch insights for each matched campaign
         campaigns_with_insights = []
@@ -124,6 +196,8 @@ def register_tools(mcp: FastMCP):
             "summary": {
                 "requested_names": campaign_names,
                 "total_matched_campaigns": len(matched_campaigns),
+                "exact_matches": len([c for c in matched_campaigns if c.get("match_type") == "exact"]),
+                "fuzzy_matches": len([c for c in matched_campaigns if c.get("match_type") == "fuzzy"]),
                 "campaigns_with_insights": len(
                     [c for c in campaigns_with_insights if "insights_error" not in c]
                 ),
@@ -145,12 +219,13 @@ def register_tools(mcp: FastMCP):
 
         This function efficiently retrieves multiple ad sets by their names and includes
         their insights data with proper date range handling. It uses Facebook's native
-        filtering with exact name matching only.
+        filtering with exact name matching first, then falls back to fuzzy matching
+        (whitespace and case insensitive) if exact match fails.
 
         Args:
             act_id (str): The Meta ad account ID with 'act_' prefix (e.g., 'act_1234567890').
-            adset_names (List[str]): List of ad set names to fetch. Uses exact name
-                matching only. Empty list returns no results.
+            adset_names (List[str]): List of ad set names to fetch. Tries exact match
+                first, then fuzzy match (ignoring whitespace and case). Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve. Common options:
                 'impressions', 'clicks', 'spend', 'reach', 'ctr', 'cpc', 'cpm', 'frequency',
                 'conversions', 'cost_per_conversion', 'actions', 'action_values', 'purchase_roas'.
@@ -166,13 +241,14 @@ def register_tools(mcp: FastMCP):
         """
         access_token = config.META_ACCESS_TOKEN
         matched_adsets = []
+        unmatched_names = []  # Track names needing fuzzy fallback
 
-        # Fetch each ad set with exact match
+        # Phase 1: Fetch each ad set with exact match
         for requested_name in adset_names:
             name_filter = [
                 {"field": "name", "operator": "EQUAL", "value": requested_name}
             ]
-            
+
             adsets_url = f"{FB_GRAPH_URL}/{act_id}/adsets"
             adsets_params = {
                 "access_token": access_token,
@@ -187,10 +263,44 @@ def register_tools(mcp: FastMCP):
                 if adset_response.get("data"):
                     for adset in adset_response.get("data", []):
                         adset["requested_name"] = requested_name
-                        adset["matched_name"] = requested_name
+                        adset["matched_name"] = adset["name"]
+                        adset["match_type"] = "exact"
                         matched_adsets.append(adset)
+                else:
+                    unmatched_names.append(requested_name)
             except Exception as e:
                 print(f"Error fetching ad set '{requested_name}': {str(e)}")
+                unmatched_names.append(requested_name)
+
+        # Phase 2: Fuzzy fallback for unmatched names
+        if unmatched_names:
+            try:
+                # Fetch all adsets once for fuzzy matching
+                all_adsets_url = f"{FB_GRAPH_URL}/{act_id}/adsets"
+                all_adsets_params = {
+                    "access_token": access_token,
+                    "fields": "id,name,effective_status",
+                    "limit": 500,
+                }
+                all_adsets_response = await make_graph_api_call(
+                    all_adsets_url, all_adsets_params
+                )
+                all_adsets = all_adsets_response.get("data", [])
+
+                still_unmatched = []
+                for requested_name in unmatched_names:
+                    match = _find_fuzzy_match(requested_name, all_adsets)
+                    if match:
+                        adset = match.copy()
+                        adset["requested_name"] = requested_name
+                        adset["matched_name"] = match["name"]
+                        adset["match_type"] = "fuzzy"
+                        matched_adsets.append(adset)
+                    else:
+                        still_unmatched.append(requested_name)
+                unmatched_names = still_unmatched
+            except Exception as e:
+                print(f"Error during fuzzy matching: {str(e)}")
 
         # Fetch insights for each matched ad set
         adsets_with_insights = []
@@ -247,6 +357,8 @@ def register_tools(mcp: FastMCP):
             "summary": {
                 "requested_names": adset_names,
                 "total_matched_adsets": len(matched_adsets),
+                "exact_matches": len([a for a in matched_adsets if a.get("match_type") == "exact"]),
+                "fuzzy_matches": len([a for a in matched_adsets if a.get("match_type") == "fuzzy"]),
                 "adsets_with_insights": len(
                     [a for a in adsets_with_insights if "insights_error" not in a]
                 ),
@@ -271,12 +383,16 @@ def register_tools(mcp: FastMCP):
         then searching for ad sets for any names not found as campaigns. Each returned object
         includes an 'object_type' field to identify whether it's a campaign or ad set.
 
+        Supports fuzzy matching: if exact name match fails, automatically tries matching with
+        whitespace and case differences ignored. For example, '[Vendas][Adv]' will match
+        '[Vendas] [Adv]' or '[VENDAS] [ADV]'.
+
         Args:
             act_id (str): The Meta ad account ID with 'act_' prefix.
                 Example format 'act_1234567890'
-            object_names (List[str]): List of object names to fetch. Uses exact name
-                matching only. The function will automatically try each name as a campaign
-                first, then as an ad set if not found. Empty list returns no results.
+            object_names (List[str]): List of object names to fetch. Tries exact match first,
+                then fuzzy match (ignoring whitespace and case). The function will automatically
+                try each name as a campaign first, then as an ad set if not found. Empty list returns no results.
             metrics (List[str]): List of Meta insights metrics to retrieve.
                 Common options are 'impressions', 'clicks', 'spend', 'reach', 'ctr',
                 'cpc', 'cpm', 'frequency', 'conversions', 'cost_per_conversion'
@@ -298,7 +414,8 @@ def register_tools(mcp: FastMCP):
                     - All standard campaign/ad set fields (id, name, effective_status)
                     - 'object_type' (str): Either "campaign" or "adset"
                     - 'requested_name' (str): Originally requested name
-                    - 'matched_name' (str): Actual name that was matched
+                    - 'matched_name' (str): Actual name that was matched (may differ if fuzzy matched)
+                    - 'match_type' (str): Either "exact" or "fuzzy"
                     - 'insights' (List[Dict]): Performance insights data
                     - 'insights_error' (str, optional): Error message if insights failed
                 - 'summary' (Dict): Summary information containing:
@@ -403,5 +520,7 @@ def register_tools(mcp: FastMCP):
                 "objects_with_insights": len(
                     [obj for obj in all_objects if "insights_error" not in obj]
                 ),
+                "exact_matches": len([obj for obj in all_objects if obj.get("match_type") == "exact"]),
+                "fuzzy_matches": len([obj for obj in all_objects if obj.get("match_type") == "fuzzy"]),
             },
         }
